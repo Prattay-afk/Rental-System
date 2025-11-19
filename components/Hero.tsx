@@ -50,11 +50,22 @@ const HeroSection = () => {
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  // TODO: Add search functionality
+                  console.log("Searching for:", searchQuery);
+                }
+              }}
               placeholder="Search by city, neighborhood or address"
               className="flex-1 rounded-none rounded-l-xl border-none bg-white h-12 text-gray-900"
             />
             <Button
-              className="bg-secondary-500 text-white rounded-none rounded-r-xl border-none hover:bg-secondary-600 h-12 px-6"
+              onClick={() => {
+                // TODO: Add search functionality
+                console.log("Searching for:", searchQuery);
+              }}
+              className="bg-[#cf7636] text-white rounded-none rounded-r-xl border-none hover:bg-[#b8652a] h-12 px-6"
             >
               Search
             </Button>
