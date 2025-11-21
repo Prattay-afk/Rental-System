@@ -3,11 +3,15 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+import { signIn } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import Navbar from '@/components/Navbar';
+import { toast } from 'sonner';
 
 export default function SignupPage() {
+  const router = useRouter();
   const [formData, setFormData] = useState({
     fullName: '',
     email: '',
@@ -17,6 +21,7 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [agreeToTerms, setAgreeToTerms] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setFormData({
@@ -25,18 +30,80 @@ export default function SignupPage() {
     });
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    
     if (formData.password !== formData.confirmPassword) {
-      alert('Passwords do not match!');
+      toast.error('Passwords do not match!');
       return;
     }
+    
     if (!agreeToTerms) {
-      alert('Please agree to the terms and conditions');
+      toast.error('Please agree to the terms and conditions');
       return;
     }
-    console.log('Signup attempted with:', formData);
-    // TODO: Add actual signup logic here
+
+    if (formData.password.length < 6) {
+      toast.error('Password must be at least 6 characters long');
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const response = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          fullName: formData.fullName,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        toast.error(data.error || 'Failed to create account');
+        return;
+      }
+
+      toast.success('Account created successfully!');
+      
+      // Automatically sign in the user after registration
+      const signInResult = await signIn('credentials', {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (signInResult?.ok) {
+        router.push('/');
+        router.refresh();
+      } else {
+        router.push('/login');
+      }
+    } catch (error: any) {
+      toast.error('An unexpected error occurred');
+      console.error('Signup error:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSocialSignup = async (provider: 'google' | 'facebook') => {
+    try {
+      setIsLoading(true);
+      await signIn(provider, {
+        callbackUrl: '/',
+      });
+    } catch (error) {
+      toast.error(`Failed to sign up with ${provider}`);
+      console.error(`${provider} signup error:`, error);
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -169,9 +236,10 @@ export default function SignupPage() {
                 {/* Signup Button */}
                 <Button
                   type="submit"
+                  disabled={isLoading}
                   className="w-full bg-[#cf7636] hover:bg-[#b8652a] text-white font-medium py-3 rounded-lg"
                 >
-                  Create Account
+                  {isLoading ? 'Creating Account...' : 'Create Account'}
                 </Button>
 
                 {/* Login Link */}
@@ -193,18 +261,12 @@ export default function SignupPage() {
                 </div>
 
                 {/* Social Signup Buttons */}
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 gap-3">
                   <button
                     type="button"
-                    className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    onClick={() => handleSocialSignup('google')}
+                    disabled={isLoading}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24">
                       <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -212,21 +274,25 @@ export default function SignupPage() {
                       <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
                       <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                     </svg>
+                    <span className="text-sm font-medium">Google</span>
                   </button>
                   <button
                     type="button"
-                    className="flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                    onClick={() => handleSocialSignup('facebook')}
+                    disabled={isLoading}
+                    className="flex items-center justify-center gap-2 px-4 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <svg className="w-5 h-5" viewBox="0 0 24 24">
-                      <path fill="#000000" d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z"/>
+                      <path fill="#1877F2" d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
                     </svg>
+                    <span className="text-sm font-medium">Facebook</span>
                   </button>
                 </div>
               </form>
             </div>
 
             {/* Right Side - Illustration */}
-            <div className="hidden md:flex bg-gradient-to-br from-[#cf7636] to-[#b8652a] p-12 items-center justify-center">
+            <div className="hidden md:flex bg-linear-to-br from-[#cf7636] to-[#b8652a] p-12 items-center justify-center">
               <div className="text-center text-white">
                 <div className="mb-6">
                   <svg className="w-24 h-24 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
