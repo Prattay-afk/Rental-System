@@ -24,8 +24,8 @@ export const authOptions: NextAuthOptions = {
           const usersCollection = db.collection<IUser>('users');
 
           // Find user by email
-          const user = await usersCollection.findOne({ 
-            email: credentials.email.toLowerCase() 
+          const user = await usersCollection.findOne({
+            email: credentials.email.toLowerCase()
           });
 
           if (!user) {
@@ -76,8 +76,8 @@ export const authOptions: NextAuthOptions = {
           const usersCollection = db.collection<IUser>('users');
 
           // Check if user already exists
-          const existingUser = await usersCollection.findOne({ 
-            email: user.email?.toLowerCase() 
+          const existingUser = await usersCollection.findOne({
+            email: user.email?.toLowerCase()
           });
 
           if (!existingUser) {
@@ -105,22 +105,49 @@ export const authOptions: NextAuthOptions = {
         token.email = user.email;
         token.name = user.name;
         token.picture = user.image;
+        token.dbIdSynced = false;
       }
 
-      // Handle session update
+      const shouldSyncDbUser = token.email && !token.dbIdSynced;
+
+      if (shouldSyncDbUser) {
+        try {
+          const db = await getDatabase();
+          const usersCollection = db.collection<IUser>('users');
+          const dbUser = await usersCollection.findOne({ email: token.email!.toLowerCase() });
+
+          if (dbUser) {
+            token.id = dbUser._id.toString();
+            token.name = dbUser.fullName || token.name || token.email!.split('@')[0];
+            token.picture = dbUser.image || token.picture;
+          }
+        } catch (error) {
+          console.error("Error syncing JWT token with DB user:", error);
+        } finally {
+          token.dbIdSynced = true;
+        }
+      }
+
+      if (!token.name && token.email) {
+        token.name = token.email.split('@')[0];
+      }
+
       if (trigger === 'update' && session) {
         token = { ...token, ...session };
+        token.dbIdSynced = false;
       }
 
       return token;
     },
     async session({ session, token }) {
+      console.log("Session Callback - Incoming Session:", JSON.stringify(session, null, 2));
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string;
         session.user.image = token.picture as string;
       }
+      console.log("Session Callback - Outgoing Session:", JSON.stringify(session, null, 2));
       return session;
     },
   },
