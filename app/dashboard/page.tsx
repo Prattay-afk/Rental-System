@@ -2,14 +2,19 @@
 
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Home, Heart, Calendar, MessageSquare } from "lucide-react";
-import Navbar from "@/components/Navbar";
+import { useEffect, useState } from "react";
+import { Loader2 } from "lucide-react";
+import { Sidebar } from "@/components/Sidebar";
+import { FilterBar } from "@/components/FilterBar";
+import { PropertyCard } from "@/components/PropertyCard";
+import { DashboardWidgets } from "@/components/DashboardWidgets";
 
 export default function DashboardPage() {
   const { data: session, status } = useSession();
   const router = useRouter();
+  const [propertyFilter, setPropertyFilter] = useState<'buy' | 'sell' | 'rent'>('rent');
+  const [properties, setProperties] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (status === "unauthenticated") {
@@ -17,13 +22,31 @@ export default function DashboardPage() {
     }
   }, [status, router]);
 
+  // Fetch properties when filter changes
+  const fetchProperties = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`/api/properties?type=${propertyFilter}`);
+      const data = await response.json();
+      setProperties(data.properties || []);
+    } catch (error) {
+      console.error("Error fetching properties:", error);
+      setProperties([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (status === "authenticated") {
+      fetchProperties();
+    }
+  }, [propertyFilter, status]);
+
   if (status === "loading") {
     return (
-      <div className="min-h-screen bg-gray-50">
-        <Navbar />
-        <div className="flex items-center justify-center min-h-screen">
-          <Loader2 className="w-8 h-8 animate-spin text-[#cf7636]" />
-        </div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-[#cf7636]" />
       </div>
     );
   }
@@ -33,136 +56,90 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <Navbar />
-      <div className="pt-24 pb-12 px-4">
-        <div className="max-w-7xl mx-auto">
-          {/* Welcome Section */}
-          <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900">
-              Welcome back, {session.user.name?.split(" ")[0]}! 👋
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Here's what's happening with your rentals today
-            </p>
+    <div className="min-h-screen bg-gray-50 flex">
+      {/* Sidebar */}
+      <Sidebar />
+
+      {/* Main Content */}
+      <div className="flex-1 ml-64 p-8">
+        {/* Top Navigation */}
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-8">
+            <button
+              onClick={() => setPropertyFilter('buy')}
+              className={`font-bold pb-1 transition-colors ${propertyFilter === 'buy'
+                ? 'text-[#cf7636] border-b-2 border-[#cf7636]'
+                : 'text-gray-400 hover:text-gray-600'
+                }`}
+            >
+              Buy
+            </button>
+            <button
+              onClick={() => setPropertyFilter('sell')}
+              className={`font-bold pb-1 transition-colors ${propertyFilter === 'sell'
+                ? 'text-[#cf7636] border-b-2 border-[#cf7636]'
+                : 'text-gray-400 hover:text-gray-600'
+                }`}
+            >
+              Sell
+            </button>
+            <button
+              onClick={() => setPropertyFilter('rent')}
+              className={`font-bold pb-1 transition-colors ${propertyFilter === 'rent'
+                ? 'text-[#cf7636] border-b-2 border-[#cf7636]'
+                : 'text-gray-400 hover:text-gray-600'
+                }`}
+            >
+              Rent
+            </button>
           </div>
+        </div>
 
-          {/* Stats Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  My Listings
-                </CardTitle>
-                <Home className="h-4 w-4 text-[#cf7636]" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-gray-500">
-                  Active property listings
-                </p>
-              </CardContent>
-            </Card>
+        <div className="flex flex-col xl:flex-row gap-8">
+          {/* Left Column: Listings */}
+          <div className="flex-1">
+            <div className="flex items-center justify-between mb-6">
+              <h1 className="text-2xl font-bold text-gray-900">
+                {loading ? 'Loading...' : `${properties.length} Results`}
+              </h1>
+            </div>
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Favorites
-                </CardTitle>
-                <Heart className="h-4 w-4 text-[#cf7636]" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-gray-500">
-                  Saved properties
-                </p>
-              </CardContent>
-            </Card>
+            <FilterBar />
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Bookings
-                </CardTitle>
-                <Calendar className="h-4 w-4 text-[#cf7636]" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-gray-500">
-                  Upcoming bookings
-                </p>
-              </CardContent>
-            </Card>
+            
 
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Messages
-                </CardTitle>
-                <MessageSquare className="h-4 w-4 text-[#cf7636]" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">0</div>
-                <p className="text-xs text-gray-500">
-                  Unread messages
-                </p>
-              </CardContent>
-            </Card>
-          </div>
-
-          {/* Recent Activity */}
-          <div className="grid md:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Activity</CardTitle>
-                <CardDescription>
-                  Your latest interactions and updates
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-8 text-gray-500">
-                  <p>No recent activity yet</p>
-                  <p className="text-sm mt-2">
-                    Start exploring properties to see your activity here
-                  </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {loading ? (
+                <div className="col-span-full flex justify-center py-12">
+                  <Loader2 className="w-8 h-8 animate-spin text-[#cf7636]" />
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>
-                  Common tasks and shortcuts
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <button className="w-full text-left px-4 py-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="font-medium">Browse Properties</div>
-                    <div className="text-sm text-gray-500">
-                      Explore available rentals
-                    </div>
-                  </button>
-                  <button className="w-full text-left px-4 py-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="font-medium">List Your Property</div>
-                    <div className="text-sm text-gray-500">
-                      Start earning with your space
-                    </div>
-                  </button>
-                  <button className="w-full text-left px-4 py-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="font-medium">Edit Profile</div>
-                    <div className="text-sm text-gray-500">
-                      Update your account information
-                    </div>
-                  </button>
+              ) : properties.length > 0 ? (
+                properties.map((property) => (
+                  <PropertyCard
+                    key={property.id}
+                    id={property.id}
+                    title={property.title}
+                    price={property.price}
+                    address={property.location}
+                    zip=""
+                    image={property.imageUrl}
+                    userId={property.userId}
+                    currentUserId={session?.user?.id}
+                    onDelete={fetchProperties}
+                  />
+                ))
+              ) : (
+                <div className="col-span-full text-center py-12">
+                  <p className="text-gray-500 text-lg">No properties found for {propertyFilter}</p>
+                  <p className="text-gray-400 text-sm mt-2">Try listing a property or changing the filter</p>
                 </div>
-              </CardContent>
-            </Card>
+              )}
+            </div>
           </div>
+
+          
         </div>
       </div>
     </div>
   );
 }
-
